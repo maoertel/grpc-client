@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package helloworld;
+
+// The greeting service definition.
+service Greeter {
+  // Sends a greeting
+  rpc SayHello (HelloRequest) returns (HelloReply) {}
+}
+
+// The request message containing the user's name.
+message HelloRequest {
+  string name = 1;
+}
+
+// The response message containing the greetings
+message HelloReply {
+  string message = 1;
+}
+
+//syntax = "proto3";
+//
+//import "google/protobuf/wrappers.proto";
+////import "scalapb/scalapb.proto";
+//
+//package helloworld;
+//
+///*
+// * Returns a greeting for the given person optionally including a custom message.
+// */
+//service HelloWorld {
+//  rpc SayHello(ToBeGreeted) returns (Greeting) {}
+//}
+//
+//message ToBeGreeted {
+//  message Person {
+//    string name = 1;
+//  }
+//
+//  Person person = 1;
+//  google.protobuf.StringValue msg = 2;
+//}
+//
+//message Greeting {
+//  string message = 1;
+//}
