@@ -25,16 +25,16 @@ object GrpcTestClient extends IOApp {
         _ <- IO(println(s"gRPC client calls service at ${conf.host}:${conf.port} to gather requested information"))
         clusterInfo <- conf.service.getDbClusterInfo(DbClusterKey("my-sharded-cluster")).map(_.state.toString())
         keyForProjectCreate <- conf.service.getDbClusterKeyForProjectCreation.map(_.key)
-        isInit <- conf.service.initProject("my-real-good-project").map {
+        isInit <- conf.service.initProject("my-real-good-project") map {
           case Response.Success => "project initialized"
           case _ => "project not initialized"
         }
-        languageUpdated <- conf.service.updateLanguages("my-real-good-project").map {
+        languageUpdated <- conf.service.updateLanguages("my-real-good-project") map {
           case Response.Success => "languages updated"
           case _ => "languages not updated"
         }
         serviceCalls: List[String] = clusterInfo :: keyForProjectCreate :: isInit :: languageUpdated :: Nil
-        _ = serviceCalls.map(println(_))
+        _ = serviceCalls map println
       } yield ExitCode.Success
     }
   }

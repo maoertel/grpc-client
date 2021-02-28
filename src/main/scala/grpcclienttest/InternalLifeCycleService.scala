@@ -50,8 +50,8 @@ object ChannelBuilder {
       IO {
         ManagedChannelBuilder
           .forAddress(host, port)
-          .usePlaintext()
-          .asInstanceOf[NettyChannelBuilder] // no encryption for testing purposes - do not do in production
+          .usePlaintext() // no encryption for testing purposes - do not do in production
+          .asInstanceOf[NettyChannelBuilder]
           .build
       }
     }(channel =>
