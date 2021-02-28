@@ -1,30 +1,32 @@
 package grpcclienttest
 
 import cats.effect.{ExitCode, IO, IOApp}
+import cats.syntax.applicative._
 import com.typesafe.config.ConfigFactory
 import lifecycleservice.lifecycleservice.EmptyResponse.Response
 import lifecycleservice.lifecycleservice.{DbClusterKey, LifeCycleServiceGrpc}
 
-import scala.concurrent.ExecutionContext.Implicits.global
-
 object GrpcTestClient extends IOApp {
+
+  private implicit val ec: scala.concurrent.ExecutionContext = scala.concurrent.ExecutionContext.global
 
   override def run(args: List[String]): IO[ExitCode] = {
 
     val application = for {
-      config <- IO(ConfigFactory.load("application.conf"))
+      config <- ConfigFactory.load("application.conf").pure[IO]
       port = config.getInt("serverConfig.port")
       host = config.getString("serverConfig.host")
 
       channel <- ChannelBuilder.build(host, port)
-      lifecycleStub <- IO(LifeCycleServiceGrpc.stub(channel))
+      lifecycleStub <- LifeCycleServiceGrpc.stub(channel).pure[IO]
 
       service <- InternalLifeCycleService.create(lifecycleStub)
     } yield service
 
+    // call the running gRPC server and ask for information
     val serviceCalls = for {
       service <- application
-      clusterInfo <- service.getDbClusterInfo(DbClusterKey("my-cluster")).map(_.state.toString())
+      clusterInfo <- service.getDbClusterInfo(DbClusterKey("my-sharded-cluster")).map(_.state.toString())
       keyForProjectCreate <- service.getDbClusterKeyForProjectCreation.map(_.key)
       isInit <- service.initProject("my-real-good-project").map {
         case Response.Success => "project initialized"
@@ -36,6 +38,7 @@ object GrpcTestClient extends IOApp {
       }
     } yield clusterInfo :: keyForProjectCreate :: isInit :: languageUpdated :: Nil
 
+    // print the responses from the gRPC server
     serviceCalls.map(_.map(println(_))).map(_ => ExitCode.Success)
   }
 }
