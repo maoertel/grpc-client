@@ -12,7 +12,7 @@ object GrpcTestClient extends IOApp {
   override def run(args: List[String]): IO[ExitCode] = {
 
     val application = for {
-      config <- IO(ConfigFactory.load())
+      config <- IO(ConfigFactory.load("application.conf"))
       port = config.getInt("serverConfig.port")
       host = config.getString("serverConfig.host")
 
