@@ -1,9 +1,10 @@
 package grpcclienttest
 
-import cats.effect.{ContextShift, IO}
+import cats.effect.{ContextShift, IO, Resource}
 import cats.implicits._
 import com.google.protobuf.empty.Empty
-import io.grpc.{Channel, ManagedChannelBuilder}
+import io.grpc.netty.NettyChannelBuilder
+import io.grpc.{ManagedChannel, ManagedChannelBuilder}
 import lifecycleservice.lifecycleservice.EmptyResponse.Response
 import lifecycleservice.lifecycleservice.LifeCycleServiceGrpc.LifeCycleServiceStub
 import lifecycleservice.lifecycleservice._
@@ -12,43 +13,50 @@ import scala.concurrent.{ExecutionContext, Future}
 
 class InternalLifeCycleService(stub: LifeCycleServiceStub)(implicit ec: ExecutionContext) {
 
-  private implicit val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
+  implicit private val contextShift: ContextShift[IO] = IO.contextShift(ExecutionContext.global)
 
   def getDbClusterKeyForProjectCreation: IO[DbClusterKey] = IO.fromFuture(
-    stub.getDbClusterKeyForProjectCreation(Empty()).pure[IO]
+    IO(stub.getDbClusterKeyForProjectCreation(Empty()))
   )
 
   def getDbClusterInfo(dbClusterKey: DbClusterKey): IO[DbClusterInfo] = IO.fromFuture(
-    stub.getDbClusterInfo(dbClusterKey).pure[IO]
+    IO(stub.getDbClusterInfo(dbClusterKey))
   )
 
   def initProject(projectKey: String): IO[Response] = process(stub.initProject, ProjectKey(projectKey))
 
   def updateLanguages(projectKey: String): IO[Response] = process(stub.updateLanguages, ProjectKey(projectKey))
 
-  def purgeProject(key: String, clusters: DbClusters): IO[Response] = IO.fromFuture(
-    stub.purgeProject(ProjectWithClusters(ProjectKey(key).some, clusters.some)).map(_.response).pure[IO]
-  )
+  def purgeProject(key: String, clusters: DbClusters): IO[Response] = IO.fromFuture {
+    IO(stub.purgeProject(ProjectWithClusters(ProjectKey(key).some, clusters.some)).map(_.response))
+  }
 
   private def process(
     request: ProjectKey => Future[EmptyResponse],
     projectKey: ProjectKey
-  ): IO[Response] = IO.fromFuture(request(projectKey).pure[IO]).map(_.response)
-
+  ): IO[Response] = IO.fromFuture(IO(request(projectKey).map(_.response)))
 }
 
 object InternalLifeCycleService {
-
-  def create(lifeCycleStub: LifeCycleServiceStub)(implicit ex: ExecutionContext): IO[InternalLifeCycleService] =
-    new InternalLifeCycleService(lifeCycleStub).pure[IO]
-
+  def resource(
+    lifeCycleStub: LifeCycleServiceStub
+  )(implicit ex: ExecutionContext): Resource[IO, InternalLifeCycleService] =
+    Resource.make(IO(new InternalLifeCycleService(lifeCycleStub)))(_ => IO.unit)
 }
 
 object ChannelBuilder {
-  def build(host: String, port: Int): IO[Channel] =
-    ManagedChannelBuilder
-      .forAddress(host, port)
-      .usePlaintext() // TODO no encryption only used for testing purposes - do not do in production
-      .build
-      .pure[IO]
+  def resource(host: String, port: Int): Resource[IO, ManagedChannel] =
+    Resource.make {
+      IO {
+        ManagedChannelBuilder
+          .forAddress(host, port)
+          .usePlaintext()
+          .asInstanceOf[NettyChannelBuilder] // no encryption for testing purposes - do not do in production
+          .build
+      }
+    }(channel =>
+      IO {
+        println("shutdown gRPC client")
+        channel.shutdown()
+      } as ())
 }
